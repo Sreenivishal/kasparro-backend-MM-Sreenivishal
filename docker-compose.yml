@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  aapp:
+  app:
     build: .
     container_name: crypto-etl-app
     restart: always
