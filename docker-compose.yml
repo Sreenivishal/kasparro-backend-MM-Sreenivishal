@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: crypto-etl-db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  aapp:
+    build: .
+    container_name: crypto-etl-app
+    restart: always
+    env_file:
+      - .env
+    # You can keep PYTHONPATH if you want, but this fix works without it too.
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    # 👇 CHANGE THIS BLOCK
+    command: >
+      sh -c "
+      python -m ingestion.etl_runner &&
+      uvicorn api.main:app --host 0.0.0.0 --port 8000
+      "
+
+volumes:
+  pgdata:
